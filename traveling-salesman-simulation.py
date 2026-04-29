@@ -2,7 +2,8 @@ import streamlit as st
 import random
 from graphviz import Digraph
 import io
-from queue import PriorityQueue
+from itertools import permutations
+from functools import lru_cache
 
 class Node:
     def __init__(self, name):
@@ -85,6 +86,63 @@ class Graph:
 
         return path, total_distance
 
+    def brute_force_tsp(self, start):
+        """Optimal TSP via exhaustive search. O(n!)."""
+        others = [n for n in self.nodes if n != start]
+        best_path, best_dist = None, float('inf')
+        for perm in permutations(others):
+            route = [start, *perm, start]
+            dist = sum(self.edges[route[i]][route[i + 1]] for i in range(len(route) - 1))
+            if dist < best_dist:
+                best_dist, best_path = dist, route
+        return best_path, best_dist
+
+    def held_karp_tsp(self, start):
+        """Optimal TSP via Held-Karp dynamic programming. O(n^2 * 2^n)."""
+        nodes = list(self.nodes.keys())
+        idx = {n: i for i, n in enumerate(nodes)}
+        n = len(nodes)
+        s = idx[start]
+        dist = [[self.edges[nodes[i]].get(nodes[j], float('inf')) for j in range(n)] for i in range(n)]
+
+        # dp[(mask, i)] = (cost, prev) for minimum cost path visiting nodes in mask, ending at i
+        dp = {(1 << s, s): (0, None)}
+        for mask in range(1 << n):
+            if not (mask & (1 << s)):
+                continue
+            for i in range(n):
+                if not (mask & (1 << i)) or (mask, i) not in dp:
+                    continue
+                cost_i, _ = dp[(mask, i)]
+                for j in range(n):
+                    if mask & (1 << j):
+                        continue
+                    new_mask = mask | (1 << j)
+                    new_cost = cost_i + dist[i][j]
+                    if (new_mask, j) not in dp or new_cost < dp[(new_mask, j)][0]:
+                        dp[(new_mask, j)] = (new_cost, i)
+
+        full = (1 << n) - 1
+        best_end, best_cost = None, float('inf')
+        for i in range(n):
+            if i == s or (full, i) not in dp:
+                continue
+            total = dp[(full, i)][0] + dist[i][s]
+            if total < best_cost:
+                best_cost, best_end = total, i
+
+        # Reconstruct path
+        path_idx = []
+        mask, cur = full, best_end
+        while cur is not None:
+            path_idx.append(cur)
+            _, prev = dp[(mask, cur)]
+            mask ^= (1 << cur)
+            cur = prev
+        path_idx.reverse()
+        path = [nodes[i] for i in path_idx] + [start]
+        return path, best_cost
+
 def create_random_graph(num_nodes, max_weight):
     graph = Graph()
     nodes = [chr(65 + i) for i in range(num_nodes)]
@@ -125,9 +183,20 @@ def main():
 
     st.sidebar.header("Traveling Salesman Problem")
     start_node = st.sidebar.selectbox("Starting Node", nodes)
+    algorithm = st.sidebar.selectbox(
+        "Algorithm",
+        ["Nearest Neighbor (heuristic)", "Brute Force (optimal)", "Held-Karp DP (optimal)"],
+    )
 
     if st.sidebar.button("Find TSP Path"):
-        path, total_distance = graph.nearest_neighbor_tsp(start_node)
+        if algorithm.startswith("Nearest"):
+            path, total_distance = graph.nearest_neighbor_tsp(start_node)
+        elif algorithm.startswith("Brute"):
+            if num_nodes > 9:
+                st.sidebar.warning("Brute force is slow for >9 nodes. Consider Held-Karp.")
+            path, total_distance = graph.brute_force_tsp(start_node)
+        else:
+            path, total_distance = graph.held_karp_tsp(start_node)
         st.session_state.path = path
         st.session_state.total_distance = total_distance
         st.sidebar.success(f"TSP Path: {' -> '.join(path)}")
@@ -139,7 +208,7 @@ def main():
     dot = graph.get_graphviz(bg_color, box_color, node_color, edge_color, path_color, zoom_level, st.session_state.path)
 
     png_data = dot.pipe(format='png')
-    st.image(png_data, caption="Traveling Salesman Problem Graph", use_column_width=True)
+    st.image(png_data, caption="Traveling Salesman Problem Graph", width='stretch')
 
     st.download_button(
         label="Download Graph as PNG",
