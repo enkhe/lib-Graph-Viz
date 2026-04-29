@@ -137,3 +137,43 @@ main()                             # Streamlit UI
 - Show **all three results side-by-side** with a bar chart of total distances.
 - Allow **manual edge weights** instead of random.
 - Support **asymmetric** TSP by separating directions in `add_edge`.
+
+## 7. TSP Graph
+
+![TSP graph example](tsp_graph.png)
+
+## 8. Mermaid Diagram
+``` mmd
+graph LR
+    A--5-->B
+    A--3-->C
+    A--3-->D
+    A--4-->E
+    A--4-->F
+    B--5-->A
+    B--4-->C
+    B--2-->D
+    B--2-->E
+    B--5-->F
+    C--3-->A
+    C--4-->B
+    C--1-->D
+    C--1-->E
+    C--2-->F
+    D--3-->A
+    D--2-->B
+    D--1-->C
+    D--5-->E
+    D--4-->F
+    E--4-->A
+    E--2-->B
+    E--1-->C
+    E--5-->D
+    E--5-->F
+    F--4-->A
+    F--5-->B
+    F--2-->C
+    F--4-->D
+    F--5-->E
+
+```
